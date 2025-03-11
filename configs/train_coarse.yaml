@@ -1,0 +1,79 @@
+task: migration
+gpus: [0]
+
+env_name: scaffold
+# full train parameters
+project_dir: ./data/small_city
+images_dir: ../rectified/images
+depths_dir: ../rectified/depths
+masks_dir: ../rectified/masks
+colmap_dir: ./data/small_city/camera_calibration/aligned
+chunks_dir: ./data/small_city/camera_calibration/chunks
+output_dir: ./data/small_city/output
+
+skip_if_exists: False
+extra_training_args: ""
+use_slurm: False
+keep_running: False
+
+# Data parameters
+sh_degree: 3
+source_path: "./data/small_city/camera_calibration/aligned"
+model_path: "./data/small_city/output/scaffold"
+exp_name: ""
+images: "../rectified/images"
+alpha_masks: "../rectified/masks"
+depths: ""
+resolution: -1
+white_background: False
+train_test_exp: False
+data_device: "cuda"
+eval: False
+skip_scale_big_gauss: False
+hierarchy: ""
+pretrained: ""
+skybox_num: 100000
+scaffold_file: "./data/small_city/output/scaffold/point_cloud/iteration_30000"
+bounds_file: ""
+skybox_locked: False
+
+# Optimization parameters
+iterations: 30000
+position_lr_init: 2e-05
+position_lr_final: 2e-07
+position_lr_delay_mult: 0.01
+position_lr_max_steps: 30000
+feature_lr: 0.0025
+opacity_lr: 0.01
+scaling_lr: 0.001
+rotation_lr: 0.001
+exposure_lr_init: 0.001
+exposure_lr_final: 0.0001
+exposure_lr_delay_steps: 5000
+exposure_lr_delay_mult: 0.001
+percent_dense: 0.0001
+lambda_dssim: 0.2
+densification_interval: 300
+opacity_reset_interval: 3000
+densify_from_iter: 500
+densify_until_iter: 15000
+densify_grad_threshold: 0.015
+depth_l1_weight_init: 1.0
+depth_l1_weight_final: 0.01
+
+# Pipeline parameters
+convert_SHs_python: False
+compute_cov3D_python: False
+debug: False
+ip: "127.0.0.1"
+port: 6009
+debug_from: -1
+detect_anomaly: False
+save_iterations: [-1, 30000]
+quiet: False
+checkpoint_iterations: []
+start_checkpoint: ""
+
+
+# viewer
+disable_viewer: False
