@@ -22,21 +22,29 @@ from torch.utils.data import DataLoader
 from lib.config import cfg
 
 
-
-def direct_collate(x):
-    return x
+from lib.datasets import make_data_loader
 
 
 def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
-    
+
     first_iter = 0
-    # prepare_output_and_logger(dataset)
     gaussians = GaussianModel(1)
     scene = Scene(dataset, gaussians)
     gaussians.training_setup(opt)
-    # if checkpoint:
-    #     (model_params, first_iter) = torch.load(checkpoint)
-    #     gaussians.restore(model_params, opt)
+    training_generator = make_data_loader(cfg,
+                                          is_train=True,
+                                          scene=scene,
+                                          is_distributed=cfg.distributed,
+                                          max_iter=cfg.ep_iter)
+
+    if cfg.skip_eval:
+        val_loader = None
+    else:
+        val_loader = make_data_loader(cfg, is_train=False)
+
+    # training_generator = DataLoader(scene.getTrainCameras(
+    # ), num_workers=8, prefetch_factor=1, persistent_workers=True, collate_fn=direct_collate)
+
 
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -44,7 +52,6 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
     iter_start = torch.cuda.Event(enable_timing=True)
     iter_end = torch.cuda.Event(enable_timing=True)
 
-    # viewpoint_stack = None
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations),
                         desc="Training progress")
@@ -53,9 +60,7 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
     indices = None
 
     iteration = first_iter
-    training_generator = DataLoader(scene.getTrainCameras(
-    ), num_workers=8, prefetch_factor=1, persistent_workers=True, collate_fn=direct_collate)
-    
+
     # for param_group in gaussians.optimizer.param_groups:
     #     if param_group["name"] == "xyz":
     #         param_group['lr'] = 0.0
@@ -71,24 +76,9 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                 viewpoint_cam.full_proj_transform = viewpoint_cam.full_proj_transform.cuda()
                 viewpoint_cam.camera_center = viewpoint_cam.camera_center.cuda()
 
-
                 if network_gui.conn == None:
                     network_gui.try_connect()
-                # while network_gui.conn != None:
-                #     try:
-                #         net_image_bytes = None
-                #         custom_cam, do_training, pipe.convert_SHs_python, pipe.compute_cov3D_python, keep_alive, scaling_modifer = network_gui.receive()
-                #         if custom_cam != None:
-                #             net_image = render_coarse(
-                #                 custom_cam, gaussians, pipe, background, scaling_modifer, indices=indices)["render"]
-                #             net_image_bytes = memoryview((torch.clamp(
-                #                 net_image, min=0, max=1.0) * 255).byte().permute(1, 2, 0).contiguous().cpu().numpy())
-                #         network_gui.send(net_image_bytes, dataset.source_path)
-                #         if do_training and ((iteration < int(opt.iterations)) or not keep_alive):
-                #             break
-                #     except Exception as e:
-                #         network_gui.conn = None
-
+                    
                 iter_start.record()
 
                 # Every 1000 its we increase the levels of SH up to a maximum degree
@@ -118,7 +108,7 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                 loss.backward()
 
                 iter_end.record()
-                
+
                 gaussians.max_radii2D[visibility_filter] = torch.max(
                     gaussians.max_radii2D[visibility_filter], radii)
 
@@ -167,7 +157,7 @@ if __name__ == "__main__":
     print("Training coarse model started")
     print("Optimizing " + cfg.model_path)
     print(cfg.model_path)
-    
+
     # Initialize system state (RNG)
     safe_state(cfg.quiet)
     cfg.scaffold_file = ""

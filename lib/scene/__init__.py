@@ -15,7 +15,7 @@ import json
 from lib.utils.system_utils import searchForMaxIteration
 from lib.scene.dataset_readers import sceneLoadTypeCallbacks
 from lib.scene.gaussian_model import GaussianModel
-from lib.utils.camera_utils import camera_to_JSON, CameraDataset
+from lib.datasets.gaussian3D.camera_utils import camera_to_JSON, CameraDataset
 from lib.utils.system_utils import mkdir_p
 
 class Scene:

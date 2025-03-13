@@ -6,18 +6,28 @@ import os
 import numpy as np
 from . import yacs
 
+# train
 cfg = CN()
+cfg.skip_eval = False
 
-#
-# Copyright (C) 2023 - 2024, Inria
-# GRAPHDECO research group, https://team.inria.fr/graphdeco
-# All rights reserved.
-#
-# This software is free for non-commercial, research and evaluation use
-# under the terms of the LICENSE.md file.
-#
-# For inquiries contact  george.drettakis@inria.fr
-#
+
+cfg.task_arg = CN()
+# -----------------------------------------------------------------------------
+# train
+# -----------------------------------------------------------------------------
+cfg.train = CN()
+cfg.train.batch_size= 1
+cfg.train.shuffle = True
+cfg.train.collator = 'default'
+cfg.train.batch_sampler = 'default'
+cfg.train.sampler_meta = CN({})
+# test
+cfg.test = CN()
+cfg.test.batch_size = 1
+cfg.test.collator = 'default'
+cfg.test.epoch = -1
+cfg.test.batch_sampler = 'default'
+cfg.test.sampler_meta = CN({})
 
 
 class GroupParams:

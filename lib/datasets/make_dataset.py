@@ -26,18 +26,9 @@ def _dataset_factory(is_train, is_val):
     return dataset
 
 
-def make_dataset(cfg, is_train=True):
-    if is_train:
-        args = cfg.train_dataset
-        module = cfg.train_dataset_module
-        path = cfg.train_dataset_path
-    else:
-        args = cfg.test_dataset
-        module = cfg.test_dataset_module
-        path = cfg.test_dataset_path
-    dataset = imp.load_source(module, path).Dataset
-    dataset = dataset(**args)
-    return dataset
+def make_dataset(cfg, is_train=True, scene=None):
+    if scene is not None:
+        return scene.getTrainCameras() 
 
 
 def make_data_sampler(dataset, shuffle, is_distributed):
@@ -76,7 +67,11 @@ def worker_init_fn(worker_id):
     np.random.seed(worker_id + (int(round(time.time() * 1000) % (2**16))))
 
 
-def make_data_loader(cfg, is_train=True, is_distributed=False, max_iter=-1):
+def direct_collate(x):
+    return x
+
+
+def make_data_loader(cfg, is_train=True, is_distributed=False, max_iter=-1, scene=None):
     if is_train:
         batch_size = cfg.train.batch_size
         # shuffle = True
@@ -87,17 +82,16 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, max_iter=-1):
         shuffle = True if is_distributed else False
         drop_last = False
 
-    dataset = make_dataset(cfg, is_train)
+    dataset = make_dataset(cfg, is_train, scene=scene)
     sampler = make_data_sampler(dataset, shuffle, is_distributed)
     batch_sampler = make_batch_data_sampler(cfg, sampler, batch_size,
                                             drop_last, max_iter, is_train)
-    num_workers = cfg.train.num_workers if is_train else cfg.test.num_workers
     collator = make_collator(cfg, is_train)
     data_loader = DataLoader(dataset,
-                            batch_sampler=batch_sampler,
-                            num_workers=num_workers,
-                            collate_fn=collator,
-                            pin_memory=True,
+                            num_workers=8,
+                             collate_fn=direct_collate,
+                             prefetch_factor=1, 
+                             persistent_workers=True,
                             worker_init_fn=worker_init_fn)
 
     return data_loader

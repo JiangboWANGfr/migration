@@ -1,6 +1,11 @@
 task: migration
 gpus: [0]
 
+
+distributed: False
+ep_iter: -1
+
+
 env_name: scaffold
 # full train parameters
 project_dir: ./data/small_city
