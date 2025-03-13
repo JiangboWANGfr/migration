@@ -16,6 +16,10 @@ extra_training_args: ""
 use_slurm: False
 keep_running: False
 
+
+
+
+
 # Data parameters
 sh_degree: 3
 source_path: "./data/small_city/camera_calibration/aligned"

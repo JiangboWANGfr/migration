@@ -12,7 +12,7 @@
 import torch
 import math
 from diff_gaussian_rasterization import GaussianRasterizationSettings, GaussianRasterizer
-from scene.gaussian_model import GaussianModel
+from lib.scene.gaussian_model import GaussianModel
 from lib.utils.sh_utils import eval_sh
 from diff_gaussian_rasterization import _C
 import numpy as np

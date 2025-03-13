@@ -6,6 +6,7 @@ tensorboard_3d
 screenshots
 
 submodules/*
+lib/submodules/*
 .history/*
 data/*
 venv/*

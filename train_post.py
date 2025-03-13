@@ -14,13 +14,12 @@ import torch
 from lib.utils.loss_utils import l1_loss, ssim
 from lib.gaussian_renderer import render_post
 import sys
-from scene import Scene, GaussianModel
+from lib.scene import Scene, GaussianModel
 from lib.utils.general_utils import safe_state
 import uuid
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from argparse import ArgumentParser, Namespace
-from arguments import ModelParams, PipelineParams, OptimizationParams
 import math
 from lib.config import cfg
 

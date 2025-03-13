@@ -16,13 +16,12 @@ from random import randint
 from lib.utils.loss_utils import ssim
 from lib.gaussian_renderer import render_post
 import sys
-from scene import Scene, GaussianModel
+from lib.scene import Scene, GaussianModel
 from tqdm import tqdm
 from lib.utils.image_utils import psnr
 from argparse import ArgumentParser
-from arguments import ModelParams, PipelineParams, OptimizationParams
 import torchvision
-from lpipsPyTorch import lpips
+from lib.lpipsPyTorch import lpips
 
 from gaussian_hierarchy._C import expand_to_size, get_interpolation_weights
 

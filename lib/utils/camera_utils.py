@@ -10,7 +10,7 @@
 #
 
 import os
-from scene.cameras import Camera
+from lib.scene.cameras import Camera
 import numpy as np
 from lib.utils.graphics_utils import fov2focal
 from PIL import Image

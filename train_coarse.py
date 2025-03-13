@@ -14,13 +14,11 @@ import torch
 from lib.utils.loss_utils import l1_loss, ssim
 from lib.gaussian_renderer import render_coarse, network_gui
 import sys
-from scene import Scene, GaussianModel
+from lib.scene import Scene, GaussianModel
 from lib.utils.general_utils import safe_state
 import uuid
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from argparse import ArgumentParser, Namespace
-from arguments import ModelParams, PipelineParams, OptimizationParams
 from lib.config import cfg
 
 
@@ -30,14 +28,15 @@ def direct_collate(x):
 
 
 def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+    
     first_iter = 0
-    prepare_output_and_logger(dataset)
+    # prepare_output_and_logger(dataset)
     gaussians = GaussianModel(1)
     scene = Scene(dataset, gaussians)
     gaussians.training_setup(opt)
-    if checkpoint:
-        (model_params, first_iter) = torch.load(checkpoint)
-        gaussians.restore(model_params, opt)
+    # if checkpoint:
+    #     (model_params, first_iter) = torch.load(checkpoint)
+    #     gaussians.restore(model_params, opt)
 
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -51,17 +50,16 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                         desc="Training progress")
     first_iter += 1
 
-    target = 0
     indices = None
 
     iteration = first_iter
     training_generator = DataLoader(scene.getTrainCameras(
     ), num_workers=8, prefetch_factor=1, persistent_workers=True, collate_fn=direct_collate)
-
-    for param_group in gaussians.optimizer.param_groups:
-        if param_group["name"] == "xyz":
-            param_group['lr'] = 0.0
-
+    
+    # for param_group in gaussians.optimizer.param_groups:
+    #     if param_group["name"] == "xyz":
+    #         param_group['lr'] = 0.0
+    #     print(param_group['name'], param_group['lr'])
     while iteration < opt.iterations + 1:
         for viewpoint_batch in training_generator:
             for viewpoint_cam in viewpoint_batch:
@@ -73,22 +71,23 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                 viewpoint_cam.full_proj_transform = viewpoint_cam.full_proj_transform.cuda()
                 viewpoint_cam.camera_center = viewpoint_cam.camera_center.cuda()
 
+
                 if network_gui.conn == None:
                     network_gui.try_connect()
-                while network_gui.conn != None:
-                    try:
-                        net_image_bytes = None
-                        custom_cam, do_training, pipe.convert_SHs_python, pipe.compute_cov3D_python, keep_alive, scaling_modifer = network_gui.receive()
-                        if custom_cam != None:
-                            net_image = render_coarse(
-                                custom_cam, gaussians, pipe, background, scaling_modifer, indices=indices)["render"]
-                            net_image_bytes = memoryview((torch.clamp(
-                                net_image, min=0, max=1.0) * 255).byte().permute(1, 2, 0).contiguous().cpu().numpy())
-                        network_gui.send(net_image_bytes, dataset.source_path)
-                        if do_training and ((iteration < int(opt.iterations)) or not keep_alive):
-                            break
-                    except Exception as e:
-                        network_gui.conn = None
+                # while network_gui.conn != None:
+                #     try:
+                #         net_image_bytes = None
+                #         custom_cam, do_training, pipe.convert_SHs_python, pipe.compute_cov3D_python, keep_alive, scaling_modifer = network_gui.receive()
+                #         if custom_cam != None:
+                #             net_image = render_coarse(
+                #                 custom_cam, gaussians, pipe, background, scaling_modifer, indices=indices)["render"]
+                #             net_image_bytes = memoryview((torch.clamp(
+                #                 net_image, min=0, max=1.0) * 255).byte().permute(1, 2, 0).contiguous().cpu().numpy())
+                #         network_gui.send(net_image_bytes, dataset.source_path)
+                #         if do_training and ((iteration < int(opt.iterations)) or not keep_alive):
+                #             break
+                #     except Exception as e:
+                #         network_gui.conn = None
 
                 iter_start.record()
 
@@ -119,7 +118,7 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                 loss.backward()
 
                 iter_end.record()
-
+                
                 gaussians.max_radii2D[visibility_filter] = torch.max(
                     gaussians.max_radii2D[visibility_filter], radii)
 
@@ -149,10 +148,10 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                         gaussians.optimizer.step(relevant)
                         gaussians.optimizer.zero_grad(set_to_none=True)
 
-                    if (iteration in checkpoint_iterations):
-                        print("\n[ITER {}] Saving Checkpoint".format(iteration))
-                        torch.save((gaussians.capture(), iteration),
-                                   scene.model_path + "/chkpnt" + str(iteration) + ".pth")
+                    # if (iteration in checkpoint_iterations):
+                    #     print("\n[ITER {}] Saving Checkpoint".format(iteration))
+                    #     torch.save((gaussians.capture(), iteration),
+                    #                scene.model_path + "/chkpnt" + str(iteration) + ".pth")
 
                     with torch.no_grad():
                         vals, _ = gaussians.get_scaling.max(dim=1)
@@ -162,21 +161,6 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                             gaussians.get_scaling[violators] * 0.8)
 
                     iteration += 1
-
-
-def prepare_output_and_logger(args):
-    if not args.model_path:
-        if os.getenv('OAR_JOB_ID'):
-            unique_str = os.getenv('OAR_JOB_ID')
-        else:
-            unique_str = str(uuid.uuid4())
-        args.model_path = os.path.join("./output/", unique_str[0:10])
-
-    # Set up output folder
-    print("Output folder: {}".format(args.model_path))
-    os.makedirs(args.model_path, exist_ok=True)
-    with open(os.path.join(args.model_path, "cfg_args"), 'w') as cfg_log_f:
-        cfg_log_f.write(str(Namespace(**vars(args))))
 
 
 if __name__ == "__main__":

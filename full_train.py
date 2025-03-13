@@ -31,24 +31,6 @@ def is_job_finished(job_id):
     return job_state if job_state in {'COMPLETED', 'FAILED', 'CANCELLED'} else ""
 
 
-def setup_dirs(images, depths, masks, colmap, chunks, output, project):
-    images_dir = "../rectified/images" if images == "" else images
-    depths_dir = "../rectified/depths" if depths == "" else depths
-    if masks == "":
-        if os.path.exists(os.path.join(project, "camera_calibration/rectified/masks")):
-            masks_dir = "../rectified/masks"
-        else:
-            masks_dir = ""
-    else:
-        masks_dir = masks
-    colmap_dir = os.path.join(
-        project, "camera_calibration", "aligned") if colmap == "" else colmap
-    chunks_dir = os.path.join(
-        project, "camera_calibration", "chunks") if chunks == "" else chunks
-    output_dir = os.path.join(project, "output") if output == "" else output
-
-    return images_dir, depths_dir, masks_dir, colmap_dir, chunks_dir, output_dir
-
 
 if __name__ == '__main__':
     os_name = platform.system()
@@ -107,7 +89,7 @@ if __name__ == '__main__':
     # if cfg.extra_training_args != "":
     #     train_chunk_args += " " + cfg.extra_training_args
 
-    hierarchy_creator_args = "submodules/gaussianhierarchy/build/Release/GaussianHierarchyCreator.exe " if os_name == "Windows" else "submodules/gaussianhierarchy/build/GaussianHierarchyCreator "
+    hierarchy_creator_args = "lib/submodules/gaussianhierarchy/build/Release/GaussianHierarchyCreator.exe " if os_name == "Windows" else "lib/submodules/gaussianhierarchy/build/GaussianHierarchyCreator "
     hierarchy_creator_args = os.path.join(
         f_path.parent.parent, hierarchy_creator_args)
 
@@ -209,7 +191,7 @@ if __name__ == '__main__':
     print(f"Successfully trained in {(end_time - start_time)/60.0} minutes.")
 
     # Consolidation to create final hierarchy
-    hierarchy_merger_path = "submodules/gaussianhierarchy/build/Release/GaussianHierarchyMerger.exe" if os_name == "Windows" else "submodules/gaussianhierarchy/build/GaussianHierarchyMerger"
+    hierarchy_merger_path = "lib/submodules/gaussianhierarchy/build/Release/GaussianHierarchyMerger.exe" if os_name == "Windows" else "lib/submodules/gaussianhierarchy/build/GaussianHierarchyMerger"
     hierarchy_merger_path = os.path.join(
         f_path.parent.parent, hierarchy_merger_path)
 

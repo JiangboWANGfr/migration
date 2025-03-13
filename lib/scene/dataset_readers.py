@@ -13,7 +13,7 @@ import os
 import sys
 from PIL import Image
 from typing import NamedTuple
-from scene.colmap_loader import read_extrinsics_text, read_intrinsics_text, qvec2rotmat, \
+from lib.scene.colmap_loader import read_extrinsics_text, read_intrinsics_text, qvec2rotmat, \
     read_extrinsics_binary, read_intrinsics_binary, read_points3D_binary, read_points3D_text
 from lib.utils.graphics_utils import getWorld2View2, focal2fov, fov2focal
 import numpy as np
@@ -21,7 +21,7 @@ import json
 from pathlib import Path
 from plyfile import PlyData, PlyElement
 from lib.utils.sh_utils import SH2RGB
-from scene.gaussian_model import BasicPointCloud
+from lib.scene.gaussian_model import BasicPointCloud
 import torch
 
 

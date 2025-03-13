@@ -13,9 +13,8 @@ import os
 import random
 import json
 from lib.utils.system_utils import searchForMaxIteration
-from scene.dataset_readers import sceneLoadTypeCallbacks
-from scene.gaussian_model import GaussianModel
-from arguments import ModelParams
+from lib.scene.dataset_readers import sceneLoadTypeCallbacks
+from lib.scene.gaussian_model import GaussianModel
 from lib.utils.camera_utils import camera_to_JSON, CameraDataset
 from lib.utils.system_utils import mkdir_p
 
@@ -23,11 +22,11 @@ class Scene:
 
     gaussians : GaussianModel
 
-    def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0], create_from_hier=False):
+    def __init__(self, cfg, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0], create_from_hier=False):
         """b
         :param path: Path to colmap scene main folder.
         """
-        self.model_path = args.model_path
+        self.model_path = cfg.model_path
         self.loaded_iter = None
         self.gaussians = gaussians
 
@@ -41,8 +40,9 @@ class Scene:
         self.train_cameras = {}
         self.test_cameras = {}
 
-        if os.path.exists(os.path.join(args.source_path, "sparse")):
-            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.alpha_masks, args.depths, args.eval, args.train_test_exp)
+        if os.path.exists(os.path.join(cfg.source_path, "sparse")):
+            scene_info = sceneLoadTypeCallbacks["Colmap"](
+                cfg.source_path, cfg.images, cfg.alpha_masks, cfg.depths, cfg.eval, cfg.train_test_exp)
         else:
             assert False, "Could not recognize scene type!"
 
@@ -68,28 +68,31 @@ class Scene:
 
         for resolution_scale in resolution_scales:
             print("Making Training Dataset")
-            self.train_cameras[resolution_scale] = CameraDataset(scene_info.train_cameras, args, resolution_scale, False)
+            self.train_cameras[resolution_scale] = CameraDataset(
+                scene_info.train_cameras, cfg, resolution_scale, False)
 
             print("Making Test Dataset")
-            self.test_cameras[resolution_scale] = CameraDataset(scene_info.test_cameras, args, resolution_scale, True)
+            self.test_cameras[resolution_scale] = CameraDataset(
+                scene_info.test_cameras, cfg, resolution_scale, True)
 
         if self.loaded_iter:
             self.gaussians.load_ply(os.path.join(self.model_path,
                                                            "point_cloud",
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
-        elif args.pretrained:
-            self.gaussians.create_from_pt(args.pretrained, self.cameras_extent)
+        elif cfg.pretrained:
+            self.gaussians.create_from_pt(cfg.pretrained, self.cameras_extent)
         elif create_from_hier:
-            self.gaussians.create_from_hier(args.hierarchy, self.cameras_extent, args.scaffold_file)
+            self.gaussians.create_from_hier(
+                cfg.hierarchy, self.cameras_extent, cfg.scaffold_file)
         else:
             self.gaussians.create_from_pcd(scene_info.point_cloud, 
                                            scene_info.train_cameras,
                                            self.cameras_extent, 
-                                           args.skybox_num,
-                                           args.scaffold_file,
-                                           args.bounds_file,
-                                           args.skybox_locked)
+                                           cfg.skybox_num,
+                                           cfg.scaffold_file,
+                                           cfg.bounds_file,
+                                           cfg.skybox_locked)
 
 
     def save(self, iteration):
