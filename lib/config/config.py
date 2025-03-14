@@ -5,29 +5,91 @@ import argparse
 import os
 import numpy as np
 from . import yacs
-
-# train
 cfg = CN()
-cfg.skip_eval = False
 
+os.environ['workspace'] = './'
+
+cfg.workspace = os.environ['workspace']
+
+cfg.save_result = False
+cfg.clear_result = False
+cfg.save_tag = 'default'
+# module
+# cfg.train_dataset_module = 'lib.datasets.dtu.neus'
+# cfg.test_dataset_module = 'lib.datasets.dtu.neus'
+# cfg.val_dataset_module = 'lib.datasets.dtu.neus'
+# cfg.network_module = 'lib.neworks.neus.neus'
+# cfg.loss_module = 'lib.train.losses.neus'
+# cfg.evaluator_module = 'lib.evaluators.neus'
+
+# experiment name
+cfg.exp_name = 'gitbranch_hello'
+cfg.exp_name_tag = ''
+cfg.pretrain = ''
+
+cfg.local_rank = 0
+
+# network
+cfg.distributed = False
+
+# task
+cfg.task = 'hello'
+
+# gpus
+cfg.gpus = list(range(1))
+# if load the pretrained network
+cfg.resume = True
+
+# epoch
+cfg.ep_iter = -1
+cfg.save_ep = 1
+cfg.save_latest_ep = 1000
+cfg.eval_ep = 1
+cfg.log_interval = 1
 
 cfg.task_arg = CN()
 # -----------------------------------------------------------------------------
 # train
 # -----------------------------------------------------------------------------
 cfg.train = CN()
-cfg.train.batch_size= 1
-cfg.train.shuffle = True
+cfg.train.epoch = 10000
+cfg.train.num_workers = 8
 cfg.train.collator = 'default'
 cfg.train.batch_sampler = 'default'
 cfg.train.sampler_meta = CN({})
+cfg.train.shuffle = True
+cfg.train.eps = 1e-8
+
+# use adam as default
+cfg.train.optim = 'adam'
+cfg.train.lr = 5e-4
+cfg.train.weight_decay = 0.
+cfg.train.scheduler = CN({'type': 'multi_step', 'milestones': [
+                         80, 120, 200, 240], 'gamma': 0.5})
+cfg.train.batch_size = 4
+
 # test
 cfg.test = CN()
 cfg.test.batch_size = 1
 cfg.test.collator = 'default'
 cfg.test.epoch = -1
+cfg.test.num_workers = 0
 cfg.test.batch_sampler = 'default'
 cfg.test.sampler_meta = CN({})
+
+# trained model
+cfg.trained_model_dir = os.path.join(os.environ['workspace'], 'trained_model')
+cfg.clean_tag = 'debug'
+
+# recorder
+cfg.record_dir = os.path.join(os.environ['workspace'], 'record')
+
+# result
+cfg.result_dir = os.path.join(os.environ['workspace'], 'result')
+
+# evaluation
+cfg.skip_eval = True
+cfg.fix_random = False
 
 
 class GroupParams:

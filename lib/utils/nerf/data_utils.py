@@ -6,10 +6,10 @@ import torch
 # from imgaug import augmenters as iaa
 from lib.config import cfg
 from plyfile import PlyData
-from lib.utils import data_config
+from lib.utils.nerf import data_config
 import re
 from io import BytesIO
-from lib.utils.parallel_utils import async_call
+from lib.utils.nerf.parallel_utils import async_call
 import imageio
 
 # def load_img_bytes(imp: str): #  scale: float = 1., encode_ext: str = '.jpg', decode_flag: str = cv2.IMREAD_UNCHANGED):

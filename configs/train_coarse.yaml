@@ -5,6 +5,8 @@ gpus: [0]
 distributed: False
 ep_iter: -1
 
+network_module: lib.scene.gaussian_model
+network_path: "./lib/scene/gaussian_model.py"
 
 env_name: scaffold
 # full train parameters
@@ -20,8 +22,6 @@ skip_if_exists: False
 extra_training_args: ""
 use_slurm: False
 keep_running: False
-
-
 
 
 

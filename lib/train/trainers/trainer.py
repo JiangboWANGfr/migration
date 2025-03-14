@@ -5,7 +5,7 @@ import tqdm
 from torch.nn import DataParallel
 from torch.nn.parallel import DistributedDataParallel
 from lib.config import cfg
-from lib.utils.data_utils import to_cuda
+from lib.utils.nerf.data_utils import to_cuda
 
 
 class Trainer(object):
