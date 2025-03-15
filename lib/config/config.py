@@ -61,10 +61,10 @@ cfg.train.shuffle = True
 cfg.train.eps = 1e-8
 
 # use adam as default
-cfg.train.optim = 'adam'
+cfg.train.optim = 'Adam'
 cfg.train.lr = 5e-4
 cfg.train.weight_decay = 0.
-cfg.train.scheduler = CN({'type': 'multi_step', 'milestones': [
+cfg.train.scheduler = CN({'type': 'multi_step1', 'milestones': [
                          80, 120, 200, 240], 'gamma': 0.5})
 cfg.train.batch_size = 4
 

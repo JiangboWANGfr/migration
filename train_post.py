@@ -22,6 +22,8 @@ from torch.utils.data import DataLoader
 from argparse import ArgumentParser, Namespace
 import math
 from lib.config import cfg
+import torch.distributed as dist
+
 
 from gaussian_hierarchy._C import expand_to_size, get_interpolation_weights
 
@@ -180,13 +182,6 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                             gaussians._opacity.grad[gaussians.anchors, :] = 0
                             gaussians._scaling.grad[gaussians.anchors, :] = 0
                         
-                        ## OurAdam version
-                        # if gaussians._opacity.grad != None:
-                        #     relevant = (gaussians._opacity.grad.flatten() != 0).nonzero()
-                        #     relevant = relevant.flatten().long()
-                        #     if(relevant.size(0) > 0):
-                        #         gaussians.optimizer.step(relevant)
-                        #     gaussians.optimizer.zero_grad(set_to_none = True)
 
                         gaussians.optimizer.step()
                         gaussians.optimizer.zero_grad(set_to_none = True)
@@ -198,6 +193,19 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                     iteration += 1
 
 
+def synchronize():
+    """
+    Helper function to synchronize (barrier) among all processes when
+    using distributed training
+    """
+    if not dist.is_available():
+        return
+    if not dist.is_initialized():
+        return
+    world_size = dist.get_world_size()
+    if world_size == 1:
+        return
+    dist.barrier()
 
 def prepare_output_and_logger(args):    
     if not args.model_path:
@@ -216,9 +224,16 @@ def prepare_output_and_logger(args):
 if __name__ == "__main__":
     
     print("Optimizing " + cfg.model_path)
-
     # Initialize system state (RNG)
     safe_state(cfg.quiet)
+    
+    if cfg.distributed:
+        cfg.local_rank = int(os.environ['RANK']) % torch.cuda.device_count()
+        torch.cuda.set_device(cfg.local_rank)
+        torch.distributed.init_process_group(backend="nccl",
+                                             init_method="env://")
+        synchronize()
+
 
     # Start GUI server, configure and run training
     torch.autograd.set_detect_anomaly(cfg.detect_anomaly)

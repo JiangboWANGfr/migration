@@ -25,17 +25,17 @@ import torch.distributed as dist
 # from lib.train import make_trainer, make_optimizer, make_lr_scheduler, make_recorder, set_lr_scheduler
 from lib.train import make_optimizer
 from lib.train import make_recorder
+from lib.train import make_lr_scheduler
 
 from lib.datasets import make_data_loader
-# from lib.utils.net_utils import load_model, save_model, load_pretrain
+from lib.utils.net_utils import load_model, save_model, load_pretrain
 from lib.evaluators import make_evaluator
 from lib.networks import make_network
 from lib.datasets import make_data_loader
 
 
 def training(cfg, gaussians):
-    
-    
+
     scene = Scene(cfg, gaussians)
     gaussians.training_setup(cfg)
     training_generator = make_data_loader(cfg,
@@ -48,11 +48,23 @@ def training(cfg, gaussians):
     else:
         val_loader = make_data_loader(cfg, is_train=False)
 
-    # optimizer = make_optimizer(cfg, network)
-    # scheduler = make_lr_scheduler(cfg, optimizer)
+    optimizer = make_optimizer(cfg, gaussians)
+    scheduler = make_lr_scheduler(cfg, optimizer)
     recorder = make_recorder(cfg)
     evaluator = make_evaluator(cfg)
+    # loading checkpoint
+    begin_epoch = load_model(network,
+                             optimizer,
+                             scheduler,
+                             recorder,
+                             cfg.trained_model_dir,
+                             resume=cfg.resume)
 
+    # loading pretrain network
+    if begin_epoch == 0 and cfg.pretrain != '':
+        load_pretrain(network, cfg.pretrain)
+    
+    
     bg_color = [1, 1, 1] if cfg.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
@@ -171,6 +183,7 @@ if __name__ == "__main__":
     print(cfg.model_path)
     cfg.scaffold_file = ""
     safe_state(cfg.quiet)
+    
 
     if cfg.distributed:
         cfg.local_rank = int(os.environ['RANK']) % torch.cuda.device_count()

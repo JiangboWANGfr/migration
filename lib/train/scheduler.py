@@ -12,6 +12,8 @@ def make_lr_scheduler(cfg, optimizer):
         scheduler = ExponentialLR(optimizer,
                                   decay_epochs=cfg_scheduler.decay_epochs,
                                   gamma=cfg_scheduler.gamma)
+    else:
+        return None
     return scheduler
 
 
