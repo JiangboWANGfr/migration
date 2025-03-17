@@ -30,25 +30,23 @@ from gaussian_hierarchy._C import expand_to_size, get_interpolation_weights
 def direct_collate(x):
     return x
 
-def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+def training(cfg, gaussians: GaussianModel):
     first_iter = 0
-    prepare_output_and_logger(dataset)
-    gaussians = GaussianModel(dataset.sh_degree)
-    gaussians.active_sh_degree = dataset.sh_degree
-    scene = Scene(dataset, gaussians, resolution_scales = [1], create_from_hier=True)
-    gaussians.training_setup(opt, our_adam=False)
-    if checkpoint:
-        (model_params, first_iter) = torch.load(checkpoint)
-        gaussians.restore(model_params, opt)
+    gaussians.active_sh_degree = cfg.sh_degree
+    scene = Scene(cfg, gaussians, resolution_scales = [1], create_from_hier=True)
+    gaussians.training_setup(cfg, our_adam=False)
+    if cfg.start_checkpoint:
+        (model_params, first_iter) = torch.load(cfg.start_checkpoint)
+        gaussians.restore(model_params, cfg)
 
-    bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
+    bg_color = [1, 1, 1] if cfg.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
     iter_start = torch.cuda.Event(enable_timing = True)
     iter_end = torch.cuda.Event(enable_timing = True)
 
     ema_loss_for_log = 0.0
-    progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
+    progress_bar = tqdm(range(first_iter, cfg.iterations), desc="Training progress")
     first_iter += 1
 
     indices = None
@@ -68,7 +66,7 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
     limmax = 0.1
     limmin = 0.005
 
-    while iteration < opt.iterations + 1:
+    while iteration < cfg.iterations + 1:
         for viewpoint_batch in training_generator:
             for viewpoint_cam in viewpoint_batch:
 
@@ -115,13 +113,13 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                 )
 
                 # Render
-                if (iteration - 1) == debug_from:
-                    pipe.debug = True
+                if (iteration - 1) == cfg.debug_from:
+                    cfg.debug = True
 
                 render_pkg = render_post(
                     viewpoint_cam, 
                     gaussians, 
-                    pipe, 
+                    cfg, 
                     background, 
                     render_indices=indices,
                     parent_indices = parent_indices,
@@ -136,10 +134,10 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                 gt_image = viewpoint_cam.original_image.cuda()
                 if viewpoint_cam.alpha_mask is not None:
                     Ll1 = l1_loss(image * viewpoint_cam.alpha_mask.cuda(), gt_image)
-                    loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image * viewpoint_cam.alpha_mask.cuda(), gt_image))
+                    loss = (1.0 - cfg.lambda_dssim) * Ll1 + cfg.lambda_dssim * (1.0 - ssim(image * viewpoint_cam.alpha_mask.cuda(), gt_image))
                 else:
                     Ll1 = l1_loss(image, gt_image) 
-                    loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
+                    loss = (1.0 - cfg.lambda_dssim) * Ll1 + cfg.lambda_dssim * (1.0 - ssim(image, gt_image))
 
                 loss.backward()
 
@@ -153,18 +151,18 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                         progress_bar.update(10)
 
                     # Log and save
-                    if (iteration in saving_iterations):
+                    if (iteration in cfg.save_iterations):
                         print("\n[ITER {}] Saving Gaussians".format(iteration))
                         scene.save(iteration)
                         print("peak memory: ", torch.cuda.max_memory_allocated(device='cuda'))
 
-                    if iteration == opt.iterations:
+                    if iteration == cfg.iterations:
                             
                         progress_bar.close()
                         return
 
                     # Optimizer step
-                    if iteration < opt.iterations:
+                    if iteration < cfg.iterations:
 
                         if gaussians._xyz.grad != None:
                             if gaussians.skybox_points != 0 and gaussians.skybox_locked: #No post-opt for skybox
@@ -186,7 +184,7 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                         gaussians.optimizer.step()
                         gaussians.optimizer.zero_grad(set_to_none = True)
 
-                    if (iteration in checkpoint_iterations):
+                    if (iteration in cfg.checkpoint_iterations):
                         print("\n[ITER {}] Saving Checkpoint".format(iteration))
                         torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
 
@@ -237,7 +235,7 @@ if __name__ == "__main__":
 
     # Start GUI server, configure and run training
     torch.autograd.set_detect_anomaly(cfg.detect_anomaly)
-    training(cfg, cfg, cfg, cfg.save_iterations,
-             cfg.checkpoint_iterations, cfg.start_checkpoint, cfg.debug_from)
+    gaussians = GaussianModel(cfg.sh_degree)
+    training(cfg, gaussians)
 
     print("\nTraining complete.")

@@ -21,32 +21,31 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from argparse import ArgumentParser, Namespace
 from lib.config import cfg
+import torch.distributed as dist
 
 
 def direct_collate(x):
     return x
 
-def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+def training(cfg, gaussians: GaussianModel):
     first_iter = 0
-    prepare_output_and_logger(dataset)
-    gaussians = GaussianModel(dataset.sh_degree)
-    scene = Scene(dataset, gaussians)
-    gaussians.training_setup(opt)
-    if checkpoint:
-        (model_params, first_iter) = torch.load(checkpoint)
-        gaussians.restore(model_params, opt)
+    scene = Scene(cfg, gaussians)
+    gaussians.training_setup(cfg)
+    if cfg.start_checkpoint:
+        (model_params, first_iter) = torch.load(cfg.start_checkpoint)
+        gaussians.restore(model_params, cfg)
 
-    bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
+    bg_color = [1, 1, 1] if cfg.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
     iter_start = torch.cuda.Event(enable_timing = True)
     iter_end = torch.cuda.Event(enable_timing = True)
 
-    depth_l1_weight = get_expon_lr_func(opt.depth_l1_weight_init, opt.depth_l1_weight_final, max_steps=opt.iterations)
+    depth_l1_weight = get_expon_lr_func(cfg.depth_l1_weight_init, cfg.depth_l1_weight_final, max_steps=cfg.iterations)
 
     ema_loss_for_log = 0.0
     ema_Ll1depth_for_log = 0.0
-    progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
+    progress_bar = tqdm(range(first_iter, cfg.iterations), desc="Training progress")
     first_iter += 1
 
     indices = None  
@@ -55,7 +54,7 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
 
     iteration = first_iter
 
-    while iteration < opt.iterations + 1:
+    while iteration < cfg.iterations + 1:
         for viewpoint_batch in training_generator:
             for viewpoint_cam in viewpoint_batch:
                 background = torch.rand((3), dtype=torch.float32, device="cuda")
@@ -71,15 +70,15 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                     while network_gui.conn != None:
                         try:
                             net_image_bytes = None
-                            custom_cam, do_training, pipe.convert_SHs_python, pipe.compute_cov3D_python, keep_alive, scaling_modifer = network_gui.receive()
+                            custom_cam, do_training, cfg.convert_SHs_python, cfg.compute_cov3D_python, keep_alive, scaling_modifer = network_gui.receive()
                             if custom_cam != None:
                                 if keep_alive:
-                                    net_image = render(custom_cam, gaussians, pipe, background, scaling_modifer, indices = indices)["render"]
+                                    net_image = render(custom_cam, gaussians, cfg, background, scaling_modifer, indices = indices)["render"]
                                 else:
-                                    net_image = render(custom_cam, gaussians, pipe, background, scaling_modifer, indices = indices)["depth"].repeat(3, 1, 1)
+                                    net_image = render(custom_cam, gaussians, cfg, background, scaling_modifer, indices = indices)["depth"].repeat(3, 1, 1)
                                 net_image_bytes = memoryview((torch.clamp(net_image, min=0, max=1.0) * 255).byte().permute(1, 2, 0).contiguous().cpu().numpy())
-                            network_gui.send(net_image_bytes, dataset.source_path)
-                            if do_training and ((iteration < int(opt.iterations)) or not keep_alive):
+                            network_gui.send(net_image_bytes, cfg.source_path)
+                            if do_training and ((iteration < int(cfg.iterations)) or not keep_alive):
                                 break
                         except Exception as e:
                             network_gui.conn = None
@@ -93,9 +92,9 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                     gaussians.oneupSHdegree()
 
                 # Render
-                if (iteration - 1) == debug_from:
-                    pipe.debug = True
-                render_pkg = render(viewpoint_cam, gaussians, pipe, background, indices = indices, use_trained_exp=True)
+                if (iteration - 1) == cfg.debug_from:
+                    cfg.debug = True
+                render_pkg = render(viewpoint_cam, gaussians, cfg, background, indices = indices, use_trained_exp=True)
                 image, invDepth, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["depth"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
                 # Loss
@@ -106,7 +105,7 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                 
                 Ll1 = l1_loss(image, gt_image)
                 Lssim = (1.0 - ssim(image, gt_image))
-                photo_loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * Lssim 
+                photo_loss = (1.0 - cfg.lambda_dssim) * Ll1 + cfg.lambda_dssim * Lssim 
                 loss = photo_loss.clone()
                 Ll1depth_pure = 0.0
                 if depth_l1_weight(iteration) > 0 and viewpoint_cam.depth_reliable:
@@ -133,30 +132,30 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                         progress_bar.update(10)
 
                     # Log and save
-                    if (iteration in saving_iterations):
+                    if (iteration in cfg.checkpoint_iterations):
                         print("\n[ITER {}] Saving Gaussians".format(iteration))
                         scene.save(iteration)
                         print("peak memory: ", torch.cuda.max_memory_allocated(device='cuda'))
 
-                    if iteration == opt.iterations:
+                    if iteration == cfg.iterations:
                         progress_bar.close()
                         return
 
                     # Densification
-                    if iteration < opt.densify_until_iter:
+                    if iteration < cfg.densify_until_iter:
                         # Keep track of max radii in image-space for pruning
                         gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii)
                         gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
-                        if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                            gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent)
+                        if iteration > cfg.densify_from_iter and iteration % cfg.densification_interval == 0:
+                            gaussians.densify_and_prune(cfg.densify_grad_threshold, 0.005, scene.cameras_extent)
                         
-                        if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
+                        if iteration % cfg.opacity_reset_interval == 0 or (cfg.white_background and iteration == cfg.densify_from_iter):
                             print("-----------------RESET OPACITY!-------------")
                             gaussians.reset_opacity()
 
                     # Optimizer step
-                    if iteration < opt.iterations:
+                    if iteration < cfg.iterations:
                         gaussians.exposure_optimizer.step()
                         gaussians.exposure_optimizer.zero_grad(set_to_none = True)
 
@@ -186,43 +185,51 @@ def training(dataset, opt, pipe, saving_iterations, checkpoint_iterations, check
                                 violators[:gaussians.scaffold_points] = False
                             gaussians._scaling[violators] = gaussians.scaling_inverse_activation(gaussians.get_scaling[violators] * 0.8)
                         
-                    if (iteration in checkpoint_iterations):
+                    if (iteration in cfg.checkpoint_iterations):
                         print("\n[ITER {}] Saving Checkpoint".format(iteration))
                         torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
 
                     iteration += 1
 
-def prepare_output_and_logger(args):    
-    if not args.model_path:
-        if os.getenv('OAR_JOB_ID'):
-            unique_str=os.getenv('OAR_JOB_ID')
-        else:
-            unique_str = str(uuid.uuid4())
-        args.model_path = os.path.join("./output/", unique_str[0:10])
-        
-    # Set up output folder
-    print("Output folder: {}".format(args.model_path))
-    os.makedirs(args.model_path, exist_ok = True)
-    with open(os.path.join(args.model_path, "cfg_args"), 'w') as cfg_log_f:
-        cfg_log_f.write(str(Namespace(**vars(args))))
+
+def synchronize():
+    """
+    Helper function to synchronize (barrier) among all processes when
+    using distributed training
+    """
+    if not dist.is_available():
+        return
+    if not dist.is_initialized():
+        return
+    world_size = dist.get_world_size()
+    if world_size == 1:
+        return
+    dist.barrier()
+
 
 if __name__ == "__main__":
     
     print("Optimizing " + cfg.model_path)
-
-    if cfg.eval and cfg.exposure_lr_init > 0 and not cfg.train_test_exp:
-        print("Reconstructing for evaluation (--eval) with exposure optimization on the train set but not for the test set.")
-        print("This will lead to high error when computing metrics. To optimize exposure on the left half of the test images, use --train_test_exp")
-
     # Initialize system state (RNG)
     safe_state(cfg.quiet)
+    torch.autograd.set_detect_anomaly(cfg.detect_anomaly)
+    
+    if cfg.distributed:
+        cfg.local_rank = int(os.environ['RANK']) % torch.cuda.device_count()
+        torch.cuda.set_device(cfg.local_rank)
+        torch.distributed.init_process_group(backend="nccl",
+                                             init_method="env://")
+        synchronize()
 
     # Start GUI server, configure and run training
     if not cfg.disable_viewer:
         network_gui.init(cfg.ip, cfg.port)
-    torch.autograd.set_detect_anomaly(cfg.detect_anomaly)
-    training(cfg, cfg, cfg, cfg,
-             cfg.checkpoint_iterations, cfg.start_checkpoint, cfg.debug_from)
+    
+    gaussians = GaussianModel(cfg.sh_degree)
+    training(cfg, gaussians)
+    if cfg.local_rank == 0:
+        print('Success!')
+        print('='*80)
 
     # All done
     print("\nTraining complete.")

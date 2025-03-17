@@ -52,7 +52,7 @@ cfg.task_arg = CN()
 # train
 # -----------------------------------------------------------------------------
 cfg.train = CN()
-cfg.train.epoch = 10000
+cfg.train.epoch = 0
 cfg.train.num_workers = 8
 cfg.train.collator = 'default'
 cfg.train.batch_sampler = 'default'
