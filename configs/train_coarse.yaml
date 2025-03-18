@@ -43,7 +43,7 @@ hierarchy: ""
 pretrained: ""
 skybox_num: 100000
 scaffold_file: "./data/small_city/output/scaffold/point_cloud/iteration_30"
-bounds_file: ""
+bounds_file: "./data/small_city/camera_calibration/chunks/0_0/"
 skybox_locked: False
 
 # Optimization parameters
