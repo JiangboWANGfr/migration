@@ -6,7 +6,7 @@ import sys
 from lib.scene import Scene
 
 
-def make_trainer_coarse(cfg, scene, gaussians, training_generator=None):
+def make_trainer(cfg, scene, gaussians, training_generator=None):
 
     bg_color = [1, 1, 1] if cfg.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
