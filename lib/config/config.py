@@ -273,12 +273,18 @@ def make_cfg(args):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--cfg_file", default="configs/default.yaml", type=str)
+# parser.add_argument('--model_path', type=str, default="")
+parser.add_argument('--bounds_file', type=str,
+                    default="./data/small_city/camera_calibration/chunks/0_0/")
 parser.add_argument('--test', action='store_true', dest='test', default=False)
 parser.add_argument("--type", type=str, default="")
 parser.add_argument('--det', type=str, default='')
 parser.add_argument('--local_rank', type=int, default=0)
 parser.add_argument("opts", default=None, nargs=argparse.REMAINDER)
 args = parser.parse_args()
+
 if len(args.type) > 0:
     cfg.task = "run"
 cfg = make_cfg(args)
+if args.bounds_file:
+    cfg['bounds_file'] = args.bounds_file

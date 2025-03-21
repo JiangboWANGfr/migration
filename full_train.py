@@ -31,7 +31,6 @@ def is_job_finished(job_id):
     return job_state if job_state in {'COMPLETED', 'FAILED', 'CANCELLED'} else ""
 
 
-
 if __name__ == '__main__':
     os_name = platform.system()
     f_path = Path(__file__)
@@ -62,15 +61,16 @@ if __name__ == '__main__':
             while is_job_finished(coarse_train) == "":
                 time.sleep(10)
         else:
-            train_coarse_args = " ".join([
-                "python", "train_coarse.py",
-                "--cfg_file", "./configs/train_coarse.yaml"
-            ])
-            try:
-                subprocess.run(train_coarse_args, shell=True, check=True)
-            except subprocess.CalledProcessError as e:
-                print(f"Error executing train_coarse: {e}")
-                sys.exit(1)
+            # train_coarse_args = " ".join([
+            #     "python", "train_coarse.py",
+            #     "--cfg_file", "./configs/train_coarse.yaml"
+            # ])
+            # try:
+            #     subprocess.run(train_coarse_args, shell=True, check=True)
+            # except subprocess.CalledProcessError as e:
+            #     print(f"Error executing train_coarse: {e}")
+            #     sys.exit(1)
+            pass 
 
     if not os.path.isabs(cfg.images_dir):
         images_dir = os.path.join("../", cfg.images_dir)
@@ -80,10 +80,6 @@ if __name__ == '__main__':
         masks_dir = os.path.join("../", cfg.masks_dir)
 
     # Now we can train each chunks using the scaffold previously created
-    train_chunk_args = " ".join([
-        "python", "-u train_single.py",
-        "--cfg_file", "./configs/train_coarse.yaml"
-    ])
     # if masks_dir != "":
     #     train_chunk_args += " --alpha_masks " + masks_dir
     # if cfg.extra_training_args != "":
@@ -94,15 +90,17 @@ if __name__ == '__main__':
         f_path.parent.parent, hierarchy_creator_args)
 
     post_opt_chunk_args = " ".join([
-        "python", "-u train_post.py",
+        "python", "-u"," ./train_post.py",
         "--cfg_file", "./configs/train_coarse.yaml"
     ])
 
     chunk_names = os.listdir(cfg.chunks_dir)
     for chunk_name in chunk_names:
         source_chunk = os.path.join(cfg.chunks_dir, chunk_name)
+        # print(f"Training chunk {chunk_name}")
+        # print(f"source_chunk: {source_chunk}")
         trained_chunk = os.path.join(
-            cfg.output_dir, "trained_chunks", chunk_name)
+            cfg.output_dir, "scaffold", chunk_name)
 
         if cfg.skip_if_exists and os.path.exists(os.path.join(trained_chunk, "hierarchy.hier_opt")):
             print(f"Skipping {chunk_name}")
@@ -120,10 +118,12 @@ if __name__ == '__main__':
             else:
                 print(f"Training chunk {chunk_name}")
                 try:
-                    subprocess.run(
-                        train_chunk_args,
-                        shell=True, check=True
-                    )
+                    train_args = " ".join([
+                        "python", "./train_single.py",
+                        "--cfg_file", "./configs/train_coarse.yaml",
+                        "--bounds_file", source_chunk
+                    ])
+                    subprocess.run(train_args,  shell=True, check=True)
                 except subprocess.CalledProcessError as e:
                     print(f"Error executing train_single: {e}")
                     if not cfg.keep_running:
@@ -135,11 +135,11 @@ if __name__ == '__main__':
                 subprocess.run(
                     hierarchy_creator_args + " ".join([
                         os.path.join(
-                            trained_chunk, "point_cloud/iteration_30000/point_cloud.ply"),
+                            trained_chunk, "point_cloud/iteration_30/point_cloud.ply"),
                         source_chunk,
                         trained_chunk,
                         os.path.join(cfg.output_dir,
-                                     "scaffold/point_cloud/iteration_30000")
+                                     "scaffold/point_cloud/iteration_30")
                     ]),
                     shell=True, check=True, text=True
                 )

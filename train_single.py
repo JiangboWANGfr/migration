@@ -18,7 +18,6 @@ from lib.scene import Scene, GaussianModel
 from lib.utils.general_utils import safe_state, get_expon_lr_func
 import uuid
 from tqdm import tqdm
-from torch.utils.data import DataLoader
 from argparse import ArgumentParser, Namespace
 from lib.config import cfg
 import torch.distributed as dist
@@ -122,6 +121,7 @@ def synchronize():
 if __name__ == "__main__":
 
     print("Optimizing " + cfg.model_path)
+    print("bounds_file: " + cfg.bounds_file)
     # Initialize system state (RNG)
     safe_state(cfg.quiet)
     torch.autograd.set_detect_anomaly(cfg.detect_anomaly)
